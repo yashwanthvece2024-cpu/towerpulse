@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ⚡ TowerPulse: Autonomous AI Edge Security Network
 
-## Getting Started
+**TowerPulse** is an enterprise-grade, autonomous edge security system designed for telecom infrastructure and remote installation sites. It combines microcontrollers (ESP32 / Arduino Uno) with ultrasonic proximity sensors, an optimized Next.js backend, and the Google Gemini AI intelligence layer to provide real-time threat detection, automated servo lockdowns, and live geospatial tracking.
 
-First, run the development server:
+---
 
+## 🏗️ System Architecture
+
+TowerPulse operates on a multi-tiered pipeline designed for zero-latency UI updates and safe API rate-limiting:
+
+1. **Hardware Edge Node (ESP32 / Arduino Uno):** Continuously measures perimeter distance using an ultrasonic sensor.
+2. **Next.js Backend API (`/api/analyze-threat`):** Features an in-memory cache for instant dashboard polling (500ms intervals), an acoustic noise filter (ignoring micro-wobbles under 10cm), and a hard 16-second cooldown timer to strictly protect API quotas.
+3. **Gemini Intelligence Layer (`gemini-3.6-flash`):** Evaluates physical clearance thresholds (e.g., objects closer than 30cm trigger a critical proximity alert) and generates automated incident logs.
+4. **Command Center Dashboard:** A fully responsive Next.js frontend featuring live Recharts telemetry, Leaflet GIS mapping, hardware diagnostics, and a built-in simulation/auto-pilot demo mode.
+
+---
+
+## ✨ Key Features
+
+* **Proximity Threat Detection:** Automatically flags critical security breaches when objects approach within 30cm of the sensor node.
+* **Smart Rate-Limiting & Caching:** Prevents API throttling using persistent global state caching and intelligent request cooldowns.
+* **Live GIS Mapping:** Integrates Leaflet with dark-mode vector tiles to track hardware nodes geographically across regional grids (e.g., Chennai deployment).
+* **Developer Override & Auto-Pilot Mode:** Includes built-in software simulation controls and a one-click auto-pilot demo sequence for seamless presentation recording.
+* **Unified Diagnostics:** Real-time monitoring tabs covering hardware health, UART serial bridges, and system audit logs.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Hardware:** ESP32 Wi-Fi Gateway, Arduino Uno, HC-SR04 Ultrasonic Sensor, SG90 Servo Actuator.
+* **Backend & API:** Next.js (App Router), TypeScript, Google GenAI SDK (`gemini-3.6-flash`).
+* **Frontend & UI:** Tailwind CSS, Lucide React Icons, Recharts, React-Leaflet.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+git clone [https://github.com/yashwanthvece2024-cpu/towerpulse.git](https://github.com/yashwanthvece2024-cpu/towerpulse.git)
+cd towerpulse

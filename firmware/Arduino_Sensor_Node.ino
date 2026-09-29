@@ -5,74 +5,81 @@ const int echoPin = 3;
 const int buzzerPin = 8;
 const int servoPin = 9;
 
-Servo lockServo;
+Servo doorServo;
+unsigned long lastPingTime = 0; 
 
-// DSP Filter Variables
-const int numReadings = 5;
-int readings[numReadings];
-int readIndex = 0;
-long total = 0;
-
-// High-speed non-blocking timer
-unsigned long lastTransmitTime = 0;
-const int transmitInterval = 250; // Send data to ESP32 every 250ms (4x faster)
+float filteredDistance = 0.0;
+// Exponential Moving Average remains at 0.4 as required
+const float alpha = 0.4; 
 
 void setup() {
-  Serial.begin(115200);
-  
+  Serial.begin(9600); 
+
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   pinMode(buzzerPin, OUTPUT);
-  
-  lockServo.attach(servoPin);
-  lockServo.write(0);
 
-  for (int i = 0; i < numReadings; i++) readings[i] = 0;
+  doorServo.attach(servoPin);
+  doorServo.write(90); 
+  delay(300);
+  doorServo.detach(); 
 }
 
 void loop() {
-  long duration, rawDistance;
-  
-  // Fire Ultrasonic Pulse
-  digitalWrite(trigPin, LOW); delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH); delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-  
-  // FIX 1: Add a 30,000 microsecond timeout. 
-  // If no echo is heard within ~5 meters, abort instantly to prevent freezing.
-  duration = pulseIn(echoPin, HIGH, 30000); 
-  
-  // Handle lost signals (if duration is 0, the pulse timed out)
-  if (duration == 0) {
-    rawDistance = 400; // Default to maximum safe distance to prevent false alarms
-  } else {
-    rawDistance = duration * 0.034 / 2;
+  // 1. Process commands instantly
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+
+    if (cmd.length() > 0) {
+      if (cmd == "BUZZ_ON") digitalWrite(buzzerPin, HIGH);
+      else if (cmd == "BUZZ_OFF") digitalWrite(buzzerPin, LOW);
+      else if (cmd == "OPEN") {
+        doorServo.attach(servoPin);
+        doorServo.write(0); 
+        delay(200);
+        doorServo.detach();
+      } 
+      else if (cmd == "LOCK") {
+        doorServo.attach(servoPin);
+        doorServo.write(90); 
+        delay(200);
+        doorServo.detach();
+      }
+    }
   }
 
-  // Execute DSP Moving Average Filter (Runs at maximum speed)
-  total = total - readings[readIndex];
-  readings[readIndex] = rawDistance;
-  total = total + readings[readIndex];
-  readIndex = (readIndex + 1) % numReadings;
-  int filteredDistance = total / numReadings;
+  // 2. Ultra-Fast Acoustic Polling (40ms interval)
+  if (millis() - lastPingTime >= 40) {
+    lastPingTime = millis();
 
-  // Autonomous Hardware Actuation (Reacts instantly)
-  if (filteredDistance > 30 && filteredDistance < 350) { 
-    lockServo.write(90);
-    digitalWrite(buzzerPin, HIGH);
-  } else {
-    lockServo.write(0);
-    digitalWrite(buzzerPin, LOW);
-  }
-  
-  // FIX 2: Non-blocking transmission. 
-  // Updates the dashboard 4x a second without pausing the sensor loop.
-  if (millis() - lastTransmitTime >= transmitInterval) {
-    Serial.print("DIST:");
-    Serial.println(filteredDistance);
-    lastTransmitTime = millis();
-  }
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
 
-  // FIX 3: Give the acoustic echoes 50ms to settle down before firing the next ping
-  delay(50); 
+    // CRITICAL HARDWARE FIX: 12000us timeout prevents the Arduino from freezing
+    // This locks the max range to ~200cm but guarantees millisecond responsiveness
+    long duration = pulseIn(echoPin, HIGH, 12000); 
+    
+    if (duration > 0) {
+      int rawDistance = duration * 0.034 / 2;
+      
+      // Apply existing DSP filter
+      if (filteredDistance == 0.0 || filteredDistance >= 999) {
+        filteredDistance = rawDistance;
+      } else {
+        filteredDistance = (alpha * rawDistance) + ((1.0 - alpha) * filteredDistance);
+      }
+      
+      int finalDistance = (int)filteredDistance;
+      Serial.println(finalDistance);
+      
+    } else {
+      // Hardware timeout
+      filteredDistance = 999;
+      Serial.println(999);
+    }
+  }
 }

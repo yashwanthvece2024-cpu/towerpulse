@@ -1,81 +1,67 @@
-import { useEffect, useState } from "react";
-
-export interface Telemetry {
-  distance: number;
-  status: string;
-  logMessage: string;
-}
+import { useEffect, useState, useRef } from "react";
 
 export function useTelemetry() {
-  const [data, setData] = useState<Telemetry>({ distance: 80, status: "SAFE", logMessage: "Connecting..." });
-  const [isSimulated, setIsSimulated] = useState(false);
-  const [simulatedDistance, setSimulatedDistance] = useState(80);
-  const [isAutoDemo, setIsAutoDemo] = useState(false);
+  const [data, setData] = useState<any>({ 
+    distance: 999, 
+    state: "ARMED", 
+    buzzerActive: false,
+    servoAngle: 90,
+    auditLog: ["System initialized. Monitoring safe baseline."]
+  });
+  
+  const [lastTelemetryTime, setLastTelemetryTime] = useState<number | null>(null);
+  const watchdogTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // 🤖 AUTO-PILOT DEMO DIRECTOR
-  useEffect(() => {
-    if (!isAutoDemo) return;
-    setIsSimulated(true);
-    setSimulatedDistance(80); // Safe
-
-    const breachTimer = setTimeout(() => {
-      setSimulatedDistance(12); // Near (< 30cm) -> Instant Alert!
-    }, 5000);
-
-    const resolveTimer = setTimeout(() => {
-      setSimulatedDistance(80); // Safe again
-      setIsAutoDemo(false);
-    }, 15000);
-
-    return () => { clearTimeout(breachTimer); clearTimeout(resolveTimer); };
-  }, [isAutoDemo]);
-
-  // 📡 THE POLLING ENGINE
-  useEffect(() => {
-    if (isSimulated) {
-      const noise = Math.floor(Math.random() * 3) - 1; 
-      const currentSimCm = Math.max(0, simulatedDistance + noise);
-      
-      // INSTANT LOCAL CHECK: < 30cm means someone is near -> CRITICAL RED ALERT
-      const isBreached = currentSimCm < 30;
-
-      setData({
-        distance: currentSimCm,
-        status: isBreached ? "CRITICAL" : "SAFE",
-        logMessage: isBreached 
-          ? `CRITICAL ALERT: Proximity breach detected at ${currentSimCm}cm!`
-          : `Area secure. Baseline distance at ${currentSimCm}cm.`
+  const sendCommand = async (cmd: string) => {
+    try {
+      const res = await fetch("/api/analyze-threat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: cmd })
       });
-      return; 
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (e) {
+      console.error("Command failed", e);
     }
+  };
 
-    // REAL HARDWARE POLLING
-    const pollData = async () => {
+  const adminOpenDoor = () => sendCommand("OPEN_DOOR");
+  const adminCloseDoor = () => sendCommand("REARM");
+  const rebootSensors = () => sendCommand("REBOOT");
+  const testBuzzer = () => sendCommand("TEST_BUZZER");
+
+  useEffect(() => {
+    const updateTelemetry = async () => {
       try {
-        const res = await fetch("/api/analyze-threat");
+        const res = await fetch("/api/analyze-threat", { cache: "no-store" });
         if (res.ok) {
-          const liveData = await res.json();
-          
-          // ⚡ INSTANT UI OVERRIDE: Even if the backend AI is cooling down, 
-          // if the physical distance drops below 30cm right now, turn the UI RED immediately!
-          const instantStatus = liveData.distance < 30 ? "CRITICAL" : liveData.status;
-          
-          setData({
-            ...liveData,
-            status: instantStatus,
-            logMessage: liveData.distance < 30 && instantStatus === "CRITICAL"
-              ? `CRITICAL ALERT: Physical proximity breach at ${liveData.distance}cm!`
-              : liveData.logMessage
-          });
+          const json = await res.json();
+          setData(json);
+          setLastTelemetryTime(Date.now());
+
+          if (watchdogTimer.current) clearTimeout(watchdogTimer.current);
+          watchdogTimer.current = setTimeout(() => {
+            setData((prev: any) => ({ ...prev, distance: 999 })); 
+          }, 3500); 
         }
       } catch (error) {
-        console.error("Backend API offline");
+        // Silent catch for network drops
       }
     };
     
-    const interval = setInterval(pollData, 500);
-    return () => clearInterval(interval);
-  }, [isSimulated, simulatedDistance]);
+    updateTelemetry();
+    
+    // Poll the telemetry endpoint every 1 second (1000ms)
+    const interval = setInterval(updateTelemetry, 1000); 
+    
+    return () => {
+      clearInterval(interval);
+      if (watchdogTimer.current) clearTimeout(watchdogTimer.current);
+    };
+  }, []);
 
-  return { data, isSimulated, setIsSimulated, simulatedDistance, setSimulatedDistance, isAutoDemo, setIsAutoDemo };
+  return { data, adminOpenDoor, adminCloseDoor, rebootSensors, testBuzzer, lastTelemetryTime };
 }

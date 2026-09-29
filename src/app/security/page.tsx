@@ -1,94 +1,188 @@
 "use client";
-import { useState } from 'react';
-import { useTowerStore } from '@/store/useTowerStore';
-import { ShieldAlert, Lock, Unlock, Bell, Cpu, Thermometer, Activity, Zap } from 'lucide-react';
+
+import { useTelemetry } from "../../hooks/useTelemetry";
+import { ShieldAlert, Unlock, Lock, Activity, Server } from "lucide-react";
 
 export default function CabinetSecurityPage() {
-  const { towers, triggerSecurityIncident } = useTowerStore();
-  const tower = towers['CAB-ALPHA'] || { id: 'CT-004', name: 'Chennai Central', status: 'CRITICAL', temperature: 42, servoState: 'UNLOCKED' };
+  const { data } = useTelemetry();
+  
+  // Real-time hardware states
+  const isBreached = data.state === "BREACHED";
+  const isOpen = data.state === "OPEN";
+  const displayDistance = data.distance === 999 ? "--" : data.distance;
 
-  const [buzzerActive, setBuzzerActive] = useState(true);
+  // Dynamic lock state formatter for the live cabinet
+  const getLockState = () => {
+    if (isBreached) return { text: "UNLOCKED (BREACH)", icon: <Unlock size={14} />, color: "text-red-500" };
+    if (isOpen) return { text: "DISENGAGED (ADMIN)", icon: <Unlock size={14} />, color: "text-[#00e5ff]" };
+    return { text: "LOCKED & SECURED", icon: <Lock size={14} />, color: "text-green-400" };
+  };
+
+  const lockStatus = getLockState();
 
   return (
-    <div className="space-y-6 flex flex-col h-full text-slate-200">
-      <header className="flex justify-between items-end">
+    <div className="p-6 md:p-8 w-full flex flex-col gap-5 h-[calc(100vh-3.5rem)] bg-[#020617] overflow-hidden">
+      
+      {/* HEADER */}
+      <div className="flex justify-between items-center border-b border-slate-800 pb-4 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-white">Cabinet Security</h1>
-          <p className="text-xs text-slate-400 mt-1">Real-time cabinet status and physical security monitoring (ESP32 / HC-SR04 telemetry)</p>
+          <h1 className="text-2xl font-bold text-white mb-1.5 tracking-tight">Cabinet Security</h1>
+          <p className="text-slate-400 text-xs">Real-time cabinet status and multi-node physical security monitoring</p>
         </div>
-        <button 
-          onClick={() => triggerSecurityIncident('CAB-ALPHA')}
-          className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded shadow-lg flex items-center gap-2 transition-all animate-pulse"
-        >
-          <Zap size={14} /> SIMULATE BREACH EVENT
-        </button>
-      </header>
+        <div className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-lg border ${isBreached ? 'bg-red-950/40 text-red-500 border-red-500/50 animate-pulse' : 'bg-green-950/20 text-green-500 border-green-500/30'}`}>
+          {isBreached ? "BREACH DETECTED" : "SYSTEM SECURE"}
+        </div>
+      </div>
 
-      {/* Main Status Row */}
-      <div className="grid grid-cols-3 gap-6">
+      {/* SCROLLABLE CONTENT AREA */}
+      <div className="flex flex-col flex-1 min-h-0 gap-6 overflow-y-auto custom-scrollbar pr-2 pb-4">
         
-        {/* Cabinet Info Card */}
-        <div className="bg-[#111c3a] border border-[#1e293b] rounded-lg p-5 flex flex-col justify-between shadow-xl">
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-[10px] font-bold text-red-400 bg-red-950/60 px-2 py-1 rounded border border-red-800">THREAT DETECTED</span>
-              <span className="text-xs font-mono text-slate-400">Cell Tower: CT-004</span>
-            </div>
-            <h2 className="text-lg font-bold text-white mb-2">Baseband Cabinet A</h2>
-            <p className="text-xs text-slate-400 mb-6">Ultrasonic proximity monitoring active on Arduino Uno UART gateway.</p>
+        {/* LIVE HARDWARE TELEMETRY STREAM (CT-004) */}
+        <div className="bg-[#070b14] rounded-xl p-6 border border-slate-800 shadow-xl flex flex-col shrink-0">
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+              <Activity size={16} className="text-[#00e5ff]" /> LIVE HARDWARE TELEMETRY STREAM
+            </h3>
+            <span className="text-[9px] bg-[#00e5ff]/10 text-[#00e5ff] px-2 py-1 rounded border border-[#00e5ff]/30 font-bold tracking-wider">
+              ACTIVE SENSOR NODE (CT-004)
+            </span>
           </div>
-
-          <div className="space-y-3 bg-[#090d16] p-4 rounded border border-[#1e293b] text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Door Lock State:</span>
-              <span className="text-red-400 font-bold flex items-center gap-1"><Unlock size={12}/> UNLOCKED</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Secondary Deadbolt:</span>
-              <span className="text-emerald-400 font-bold">ENGAGED</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Buzzer Alarm:</span>
-              <span className="text-amber-400 font-bold animate-pulse">ACTIVE (PIN 8)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Live Sensor Readings */}
-        <div className="bg-[#111c3a] border border-[#1e293b] rounded-lg p-5 shadow-xl col-span-2 flex flex-col justify-between">
-          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4">Live Hardware Telemetry Stream</h3>
           
-          <div className="grid grid-cols-4 gap-4">
-            <div className="bg-[#090d16] p-4 rounded border border-[#1e293b]">
-              <span className="text-[10px] text-slate-400 block mb-1">Raw Distance (HC-SR04)</span>
-              <span className="text-2xl font-mono font-bold text-red-400">74.2 <span className="text-xs">cm</span></span>
-              <span className="text-[9px] text-red-500 block mt-1">▲ Threshold Exceeded</span>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            <div className="bg-[#03050a] rounded-lg border border-slate-800 p-4 flex flex-col justify-center">
+              <p className="text-[10px] text-slate-500 mb-1">Raw Distance (HC-SR04)</p>
+              <div className={`text-2xl font-black ${isBreached ? 'text-red-500' : 'text-[#00e5ff]'}`}>
+                {displayDistance} <span className="text-xs font-bold text-slate-500">cm</span>
+              </div>
             </div>
-            <div className="bg-[#090d16] p-4 rounded border border-[#1e293b]">
-              <span className="text-[10px] text-slate-400 block mb-1">Filtered Distance</span>
-              <span className="text-2xl font-mono font-bold text-cyan-400">73.6 <span className="text-xs">cm</span></span>
-              <span className="text-[9px] text-slate-500 block mt-1">Moving Avg Filter (N=5)</span>
+            <div className="bg-[#03050a] rounded-lg border border-slate-800 p-4 flex flex-col justify-center">
+              <p className="text-[10px] text-slate-500 mb-1">Filtered Distance (DSP)</p>
+              <div className={`text-2xl font-black ${isBreached ? 'text-red-400' : 'text-cyan-400'}`}>
+                {displayDistance} <span className="text-xs font-bold text-slate-500">cm</span>
+              </div>
             </div>
-            <div className="bg-[#090d16] p-4 rounded border border-[#1e293b]">
-              <span className="text-[10px] text-slate-400 block mb-1">Internal Temp</span>
-              <span className="text-2xl font-mono font-bold text-amber-400">{tower.temperature} <span className="text-xs">°C</span></span>
-              <span className="text-[9px] text-slate-500 block mt-1">Thermal Safe</span>
+            <div className="bg-[#03050a] rounded-lg border border-slate-800 p-4 flex flex-col justify-center">
+              <p className="text-[10px] text-slate-500 mb-1">Internal Temp</p>
+              <div className="text-2xl font-black text-amber-400">
+                42.1 <span className="text-xs font-bold text-slate-500">°C</span>
+              </div>
             </div>
-            <div className="bg-[#090d16] p-4 rounded border border-[#1e293b]">
-              <span className="text-[10px] text-slate-400 block mb-1">ESP32 Gateway</span>
-              <span className="text-xl font-mono font-bold text-emerald-400 flex items-center gap-1.5 mt-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> ONLINE
-              </span>
-              <span className="text-[9px] text-slate-500 block mt-1">UART 115200 baud</span>
+            <div className="bg-[#03050a] rounded-lg border border-slate-800 p-4 flex flex-col justify-center">
+              <p className="text-[10px] text-slate-500 mb-1">ESP32 Gateway</p>
+              <div className="text-sm font-black text-green-400 flex items-center gap-2 mt-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> ONLINE
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-red-950/30 border border-red-900/50 rounded flex items-center justify-between text-xs">
-            <span className="text-red-300 font-medium">⚠️ Security Policy Triggered: Distance delta &gt; 30cm from baseline (42cm). Automatic lockdown initiated.</span>
-            <span className="font-mono text-[10px] text-slate-400">14:32:17 UTC</span>
+          <div className={`rounded-lg p-3.5 flex items-center gap-3 border text-xs font-bold ${isBreached ? 'bg-red-950/30 border-red-500/50 text-red-400' : 'bg-slate-900/50 border-slate-700 text-slate-400'}`}>
+            <ShieldAlert size={16} className={isBreached ? 'text-red-500 animate-bounce' : 'text-slate-500'} />
+            {isBreached 
+              ? `Security Policy Triggered: Distance delta > 30cm from baseline. Automatic lockdown initiated.` 
+              : `Security Policy Active: Monitoring acoustic baseline. System nominal.`}
           </div>
         </div>
 
+        {/* MULTI-CABINET FLEET STATUS */}
+        <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest shrink-0 mt-2">CABINET FLEET STATUS</h3>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 shrink-0">
+          
+          {/* CAB-ALPHA (LIVE HARDWARE) */}
+          <div className={`rounded-xl p-5 border shadow-xl flex flex-col ${isBreached ? 'bg-red-950/10 border-red-500/40' : 'bg-[#070b14] border-[#00e5ff]/40'}`}>
+            <div className="flex justify-between items-center mb-5">
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${isBreached ? 'bg-red-500/20 text-red-500 border-red-500/40' : 'bg-[#00e5ff]/10 text-[#00e5ff] border-[#00e5ff]/30'}`}>
+                {isBreached ? 'THREAT DETECTED' : 'SECURE (LIVE)'}
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">CT-004</span>
+            </div>
+            
+            <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2"><Server size={14} className="text-slate-400"/> Baseband Cabinet A</h3>
+            <p className="text-[11px] text-slate-500 mb-5">Chennai Central Sector (Active Node)</p>
+
+            <div className="bg-[#03050a] rounded-lg border border-slate-800 p-4 space-y-3.5 mt-auto">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Lock State:</span>
+                <span className={`font-bold flex items-center gap-1.5 ${lockStatus.color}`}>
+                  {lockStatus.icon} {lockStatus.text}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Deadbolt:</span>
+                <span className={`font-bold ${isOpen ? 'text-amber-400' : 'text-green-400'}`}>
+                  {isOpen ? 'DISENGAGED' : 'ENGAGED'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Buzzer Alarm:</span>
+                <span className={`font-bold ${isBreached ? 'text-red-500 animate-pulse' : 'text-slate-500'}`}>
+                  {isBreached ? 'ACTIVE (PIN 8)' : 'SILENT'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* CAB-BETA (SIMULATED / SAFE) */}
+          <div className="bg-[#070b14] rounded-xl p-5 border border-slate-800 shadow-xl flex flex-col opacity-90">
+            <div className="flex justify-between items-center mb-5">
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-green-500/10 text-green-400 border-green-500/30 uppercase tracking-wider">
+                SECURE
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">CT-005</span>
+            </div>
+            
+            <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2"><Server size={14} className="text-slate-400"/> Baseband Cabinet B</h3>
+            <p className="text-[11px] text-slate-500 mb-5">Guindy Industrial Corridor</p>
+
+            <div className="bg-[#03050a] rounded-lg border border-slate-800 p-4 space-y-3.5 mt-auto">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Lock State:</span>
+                <span className="font-bold flex items-center gap-1.5 text-green-400">
+                  <Lock size={14} /> LOCKED & SECURED
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Deadbolt:</span>
+                <span className="font-bold text-green-400">ENGAGED</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Buzzer Alarm:</span>
+                <span className="font-bold text-slate-500">SILENT</span>
+              </div>
+            </div>
+          </div>
+
+          {/* CAB-GAMMA (SIMULATED / SAFE) */}
+          <div className="bg-[#070b14] rounded-xl p-5 border border-slate-800 shadow-xl flex flex-col opacity-90">
+            <div className="flex justify-between items-center mb-5">
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded border bg-green-500/10 text-green-400 border-green-500/30 uppercase tracking-wider">
+                SECURE
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">CT-006</span>
+            </div>
+            
+            <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2"><Server size={14} className="text-slate-400"/> Baseband Cabinet C</h3>
+            <p className="text-[11px] text-slate-500 mb-5">Tambaram Transit Hub</p>
+
+            <div className="bg-[#03050a] rounded-lg border border-slate-800 p-4 space-y-3.5 mt-auto">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Lock State:</span>
+                <span className="font-bold flex items-center gap-1.5 text-green-400">
+                  <Lock size={14} /> LOCKED & SECURED
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Deadbolt:</span>
+                <span className="font-bold text-green-400">ENGAGED</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Buzzer Alarm:</span>
+                <span className="font-bold text-slate-500">SILENT</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   );

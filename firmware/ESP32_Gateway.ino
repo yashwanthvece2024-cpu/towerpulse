@@ -9,7 +9,7 @@ const char* ssid = "POCO M6 Pro 5G";         // Replace with your Wi-Fi name
 const char* password = "yash2607"; // Replace with your Wi-Fi password
 
 // Your Next.js local network endpoint
-const char* serverName = "http://10.171.109.56:3000/api/analyze-threat";
+const char* serverName = "https://towerpulse-dashboard.onrender.com/api/analyze-threat";
 
 void setup() {
   Serial.begin(115200);                      // USB Serial Monitor for debugging

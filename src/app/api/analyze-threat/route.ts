@@ -1,39 +1,54 @@
-// Example: src/app/api/analyze-threat/route.ts
 import { NextResponse } from 'next/server';
 
+// In-memory state store for the live session
+let globalState = {
+  distance: 169,
+  state: "ARMED",
+  buzzerActive: false,
+  servoAngle: 90,
+  auditLog: ["System initialized. Monitoring safe baseline."]
+};
+
+// 1. Handle GET requests from the Next.js frontend telemetry hook
+export async function GET() {
+  return NextResponse.json(globalState);
+}
+
+// 2. Handle POST requests from the ESP32 or UI Command buttons
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const currentDistance = body.distance;
-
-    // 1. Evorozen Neural Pulse API Integration
-    const evorozenResponse = await fetch("https://api.evorozen.com/v1/neural-pulse/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.EVOROZEN_API_KEY}` // Add your key to .env
-      },
-      body: JSON.stringify({
-        sensor_type: "HC-SR04",
-        telemetry_value: currentDistance,
-        threshold: 30
-      })
-    });
-
-    const aiAnalysis = await evorozenResponse.json();
-
-    // 2. Security Logic based on AI + Distance
-    let isBreached = currentDistance <= 30;
     
-    return NextResponse.json({
-      distance: currentDistance,
-      state: isBreached ? "CRITICAL BREACH" : "ARMED",
-      buzzerActive: isBreached,
-      servoAngle: isBreached ? 90 : 0,
-      evorozenInsights: aiAnalysis.pulse_insight || "Monitoring baseline."
-    });
+    // Check if the ESP32 sent a distance reading
+    if (body.distance !== undefined) {
+      const distance = Number(body.distance);
+      const isBreached = distance <= 30 && distance > 0;
 
+      globalState.distance = distance;
+      globalState.state = isBreached ? "CRITICAL BREACH" : "ARMED";
+      globalState.buzzerActive = isBreached;
+      globalState.servoAngle = isBreached ? 90 : 0; // 90 = Open, 0 = Locked (or vice versa per your setup)
+
+      if (isBreached && !globalState.auditLog.includes(`[CRITICAL] Object detected at ${distance}cm!`)) {
+        globalState.auditLog.unshift(`[CRITICAL] Object detected at ${distance}cm! Auto-locking door.`);
+      }
+    }
+
+    // Check if the frontend sent a command (e.g. OPEN_DOOR, REARM)
+    if (body.command) {
+      if (body.command === "OPEN_DOOR") {
+        globalState.servoAngle = 90;
+        globalState.auditLog.unshift("[ADMIN] Door manually opened.");
+      } else if (body.command === "REARM") {
+        globalState.servoAngle = 0;
+        globalState.state = "ARMED";
+        globalState.buzzerActive = false;
+        globalState.auditLog.unshift("[ADMIN] System re-armed.");
+      }
+    }
+
+    return NextResponse.json(globalState);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to process telemetry' }, { status: 500 });
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 }
